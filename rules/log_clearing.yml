@@ -1,0 +1,8 @@
+title: Security Log Cleared
+id: rule-001
+level: high
+mitre: T1070.001
+description: Security audit log was cleared
+detection:
+  event_id: [1102]
+  channel: Security
