@@ -11,5 +11,7 @@ alerts = run_detection(parse_evtx(path), rules)
 for a in alerts:
     print(f"[{a['level'].upper()}] {a['time']} | {a['computer']} | "
           f"{a['rule']} ({a['mitre']})")
+    for k, v in a["details"].items():
+        print(f"        {k}: {v}")
 
 print(f"[*] Total alerts: {len(alerts)}")

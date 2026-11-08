@@ -1,0 +1,9 @@
+title: System Log Cleared
+id: rule-002
+level: high
+mitre: T1070.001
+description: A Windows log (System/Application/other) was cleared
+detection:
+  event_id: [104]
+  channel: System
+show: [SubjectUserName, Channel]

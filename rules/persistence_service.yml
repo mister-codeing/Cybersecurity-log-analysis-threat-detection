@@ -1,0 +1,17 @@
+title: Suspicious Service Installed
+id: rule-003
+level: high
+mitre: T1543.003
+description: New service installed with a suspicious binary path
+detection:
+  event_id: [7045]
+  channel: System
+  fields:
+    ImagePath|contains:
+      - '\temp\'
+      - '\appdata\'
+      - '\users\public\'
+      - 'powershell'
+      - 'cmd.exe'
+      - '%comspec%'
+show: [ServiceName, ImagePath]
