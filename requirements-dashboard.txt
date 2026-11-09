@@ -1,0 +1,6 @@
+# OPTIONAL web dashboard (streamlit run dashboard.py).
+# The command-line tool does NOT need these packages.
+-r requirements.txt
+streamlit>=1.50       # web UI (row selection, width="stretch")
+pandas>=2.0           # tables for st.dataframe / charts
+altair>=5.0           # charts with fixed severity colours (installed with streamlit)
