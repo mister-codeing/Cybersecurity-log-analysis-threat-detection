@@ -12,13 +12,12 @@ Examples:
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 
-from detector.correlation import (is_relevant, load_config, parse_timeframe,
-                                  run_correlation)
-from detector.engine import LEVELS, RuleError, detect_event, is_correlation_rule, load_rules
-from detector.parser import parse_evtx
+from detector.correlation import load_config, parse_timeframe
+from detector.engine import LEVELS, RuleError, load_rules
+# The detection steps live in detector/pipeline.py (shared with dashboard.py).
+from detector.pipeline import analyze, filter_by_level, find_evtx_files
 from detector.report import FILE_FORMATS, write_reports
 
 FORMATS = ["console"] + list(FILE_FORMATS)      # console, csv, json, html
@@ -59,54 +58,8 @@ def parse_formats(text: str) -> list[str]:
     return formats
 
 
-def find_evtx_files(paths: list[str]) -> tuple[list[str], list[str]]:
-    """Expand folders into .evtx files. Returns (files, error messages)."""
-    files, errors = [], []
-    for path in paths:
-        if os.path.isfile(path):
-            files.append(path)
-        elif os.path.isdir(path):
-            found = sorted(os.path.join(root, name)
-                           for root, _, names in os.walk(path)
-                           for name in names if name.lower().endswith(".evtx"))
-            if not found:
-                errors.append(f"no .evtx files found in folder: {path}")
-            files.extend(found)
-        else:
-            errors.append(f"path not found: {path}")
-    return files, errors
-
-
 def warn(message: str) -> None:
     print(f"[!] {message}", file=sys.stderr)
-
-
-def analyze(files: list[str], rules: list[dict], config: dict,
-            cli_overrides: dict) -> tuple[list[dict], dict]:
-    """Read all files once, run single-event rules, then correlation rules."""
-    correlation_rules = [r for r in rules if is_correlation_rule(r)]
-    alerts: list[dict] = []
-    kept_for_correlation: list[dict] = []
-    stats = {"files": [], "failed_files": [], "events": 0, "rules": len(rules)}
-
-    for path in files:
-        count = 0
-        try:
-            for event in parse_evtx(path):
-                count += 1
-                alerts.extend(detect_event(event, rules))
-                # Only keep events that a correlation rule needs (saves memory).
-                if any(is_relevant(r, event) for r in correlation_rules):
-                    kept_for_correlation.append(event)
-            stats["files"].append(path)
-        except Exception as exc:          # corrupt / not an EVTX file / no access
-            warn(f"could not read {path}: {type(exc).__name__}: {exc}")
-            stats["failed_files"].append(path)
-        stats["events"] += count
-
-    # Correlation runs over ALL files together (e.g. RDP across many hosts).
-    alerts.extend(run_correlation(kept_for_correlation, rules, config, cli_overrides))
-    return alerts, stats
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -148,9 +101,10 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as exc:            # e.g. bad threshold value in config.yml
         warn(str(exc))
         return EXIT_ERROR
+    for message in stats["warnings"]:    # e.g. corrupt files
+        warn(message)
 
-    minimum = LEVELS.index(args.min_level)
-    alerts = [a for a in alerts if LEVELS.index(a["level"]) >= minimum]
+    alerts = filter_by_level(alerts, args.min_level)
 
     # --- reports ---
     try:
