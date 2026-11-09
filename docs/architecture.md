@@ -18,7 +18,18 @@ has exactly one job. This keeps each file small and easy to test on its own.
                                                      │ config.yml / --threshold / --timeframe
 ```
 
-`main.py` connects the stages, reads command-line options and handles errors.
+`detector/pipeline.py` connects the stages (`run_pipeline()`). Two user
+interfaces sit on top of it and contain **no detection logic**:
+
+```
+                 ┌───────────────────────────────┐
+  main.py  ────► │  detector/pipeline.py         │ ◄──── dashboard.py (optional)
+  (CLI)          │  find files → parse → detect  │       Streamlit web UI
+                 │  → correlate → (alerts, stats)│          │
+                 └───────────────────────────────┘          ▼
+                                                     detector/dashboard_data.py
+                                                     filters, counts, timeline
+```
 
 ## 1. Parsing - `detector/parser.py`
 
@@ -123,7 +134,23 @@ All formats use the same alert dict:
 | JSON | machine-readable: scan info, summary and all alerts |
 | HTML | one self-contained file: summary cards, technique table with links to attack.mitre.org, sortable alerts table (small inline JavaScript), color-coded timeline. All event data is HTML-escaped so a malicious log cannot inject script into the report. |
 
-## 5. Command line - `main.py`
+## 5. Shared pipeline - `detector/pipeline.py`
+
+- `find_evtx_files(paths)` - expands folders into `.evtx` files (recursive).
+- `analyze(files, rules, config, overrides, progress)` - reads every file once,
+  runs single-event rules, keeps events needed for correlation, then runs
+  correlation over all files. A file that cannot be read is recorded in
+  `stats["warnings"]` and skipped. The optional `progress` callback is called when
+  a file starts and every 2000 events (the dashboard uses it for its progress bar).
+- `run_pipeline(paths, rules_dir, config, ...)` - loads rules and config, does all
+  of the above and returns `(alerts, stats)`.
+
+The module never prints: each interface decides how to show warnings.
+
+## 6. Command line - `main.py`
+
+Uses the pipeline functions above.
+
 
 1. Parse options with `argparse` and validate them (formats, timeframe, threshold).
 2. Load rules and `config.yml`.
@@ -133,3 +160,28 @@ All formats use the same alert dict:
 5. Run correlation over all kept events.
 6. Filter by `--min-level`, write the requested reports.
 7. Exit code `0` (ok) or `2` (error).
+
+## 7. Dashboard (optional) - `dashboard.py` + `detector/dashboard_data.py`
+
+The dashboard is a **presentation layer only**; the CLI never imports it and
+does not need Streamlit.
+
+```
+ sidebar input ─► check_upload / safe_filename ─► temp folder ─► run_pipeline()
+ threshold inputs ─► build_config() ──────────────────────────────►   │ (cached:
+                                                                      │  st.cache_data)
+                                                                      ▼
+            metric cards ◄── level_counts()                    (alerts, stats)
+            charts       ◄── technique_counts(), timeline_counts()
+            table        ◄── filter_alerts(), alert_rows()
+            downloads    ◄── report.csv_text(), json_text(), build_html()
+```
+
+| Concern | Solution |
+|---|---|
+| Re-parsing on every click | Streamlit re-runs the whole script on every interaction; `st.cache_data` stores `(alerts, stats)` keyed by the uploaded bytes / folder file fingerprints, the thresholds and the rule files. The progress bar is created *inside* the cached function, because Streamlit replays elements created there on a cache hit. |
+| Thresholds from the UI | `build_config()` writes the values in the normal `config.yml` format, so `correlation.py` needs no dashboard-specific code. Brute force applies to rule-007..010, RDP to rule-015/016. |
+| Untrusted log content | Shown only with plain-text elements (`st.dataframe`, `st.code`, charts). Markdown/HTML rendering is never used for event data. MITRE links are only built for ids matching `T1234` / `T1234.567`. |
+| Malicious uploads | Extension + `ElfFile` header check, file name reduced to `[A-Za-z0-9._-]` (no `../`), private temporary folder deleted after analysis. |
+| Spreadsheet formula injection | `report.safe_cell()` prefixes CSV cells starting with `= + - @` with `'`. |
+| Testability | All non-UI logic is in `dashboard_data.py` (plain Python, unit tested without Streamlit or pandas). |

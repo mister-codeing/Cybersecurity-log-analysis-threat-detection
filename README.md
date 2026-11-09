@@ -20,7 +20,8 @@ small so every part can be read and explained.
 - Thresholds configurable per rule in `config.yml` or globally with `--threshold` / `--timeframe`
 - Reports: **console** summary, **CSV**, **JSON** and a single-file **HTML** report (sortable table, severity colors, MITRE links, timeline)
 - Graceful error handling: corrupt files, empty files, missing paths, invalid rules
-- 69 automated `pytest` tests that run without any real EVTX file
+- 94 automated `pytest` tests that run without any real EVTX file
+- Optional **web dashboard** (Streamlit) with charts, filters and exports - see [Dashboard](#dashboard-optional)
 
 ## Supported detections
 
@@ -62,7 +63,10 @@ small so every part can be read and explained.
 | `detector/engine.py` | Loads and validates YAML rules, matches a single event against a rule, builds alert dicts. |
 | `detector/correlation.py` | Rules that need several events: groups events, applies sliding time windows (threshold) and "step 1 then step 2" logic (sequence). |
 | `detector/report.py` | Console summary, CSV, JSON and HTML reports. |
-| `main.py` | Command-line interface: finds files, runs the pipeline, handles errors. |
+| `detector/pipeline.py` | Runs the whole pipeline (`run_pipeline()`); shared by the CLI and the dashboard so detection code exists only once. |
+| `detector/dashboard_data.py` | Pure-Python data preparation for the dashboard (filters, counts, timeline, upload checks). |
+| `main.py` | Command-line interface: options, error messages, report files. |
+| `dashboard.py` | Optional Streamlit web dashboard (user interface only). |
 | `rules/` | One YAML file per technique. |
 | `config.yml` | Optional threshold/time-window overrides per correlation rule. |
 
@@ -134,6 +138,54 @@ Example console output:
         SubjectDomainName: EXAMPLE
 [*] Total alerts: 1
 ```
+
+## Dashboard (optional)
+
+A small web dashboard built with [Streamlit](https://streamlit.io) shows the same
+results visually. It is **optional**: the command-line tool works without
+installing anything from this section.
+
+```bash
+pip install -r requirements-dashboard.txt     # streamlit, pandas, altair
+streamlit run dashboard.py                    # opens http://localhost:8501
+```
+
+What it shows:
+
+- **Sidebar** - upload one or more `.evtx` files, *or* enter a folder path (e.g. `samples`);
+  number inputs for the correlation thresholds (brute-force failures + window,
+  RDP hosts/sources + window), pre-filled from `config.yml`
+- **Metric cards** - events parsed, total alerts, Critical / High / Medium / Low
+- **Charts** - alerts by severity, by MITRE ATT&CK technique, and over time (stacked by severity)
+- **Alerts table** - sortable (click a header), filterable by severity, technique, rule and
+  computer, plus a free-text search (user names, IPs, commands...)
+- **Alert details** - select a row to see every field and a link to the technique on attack.mitre.org
+- **Export** - filtered alerts as CSV / JSON, and the full HTML report (same generator as the CLI)
+
+Charts, table and CSV/JSON exports follow the filters; the metric cards and the HTML
+report always cover all alerts.
+
+How it is built:
+
+- It calls `detector.pipeline.run_pipeline()` - no detection logic in the dashboard.
+- Results are cached with `st.cache_data`: changing a filter does not re-parse the files;
+  changing files, thresholds or rule files does.
+- Security: log content is treated as untrusted and only displayed as plain text
+  (no `unsafe_allow_html`). Uploads must have the `.evtx` extension and the EVTX file header,
+  are saved under a sanitized name in a temporary folder and deleted after analysis.
+  CSV exports neutralize spreadsheet formulas (`=`, `+`, `-`, `@`).
+- The folder option reads folders on the computer running Streamlit, so the dashboard is
+  meant to be run **locally**, not exposed on a network.
+
+### Screenshots
+
+> _Placeholder - add your own screenshots to `docs/screenshots/` and uncomment the lines below._
+
+<!--
+![Dashboard overview](docs/screenshots/dashboard_overview.png)
+![Alerts table and details](docs/screenshots/dashboard_alerts.png)
+![HTML report](docs/screenshots/html_report.png)
+-->
 
 ## Rule format
 
@@ -240,6 +292,8 @@ python -m pytest -v         # one line per test
 - `tests/test_engine.py` - every operator, AND/OR/exclude logic, rule validation, the real rules
 - `tests/test_correlation.py` - thresholds, time windows, grouping, distinct counts, sequences, config priority
 - `tests/test_report.py` - summary, CSV, JSON, HTML (including HTML escaping)
+- `tests/test_pipeline.py` - the shared `run_pipeline()` function (warnings, corrupt files, progress callback)
+- `tests/test_dashboard_data.py` - dashboard helpers: filters, search, counts, timeline buckets, threshold config, upload checks
 - `tests/test_cli.py` - CLI options and errors; one **integration test** on the real
   `DE_1102_security_log_cleared.evtx`, automatically **skipped** if the file is missing
 
@@ -266,12 +320,15 @@ python -m pytest -v         # one line per test
 
 ```
 ├── main.py                 CLI entry point
+├── dashboard.py            optional Streamlit dashboard
 ├── config.yml              correlation thresholds
 ├── detector/
 │   ├── parser.py           EVTX -> normalized events
 │   ├── engine.py           rule loading, validation, matching
 │   ├── correlation.py      threshold & sequence correlation
-│   └── report.py           console / CSV / JSON / HTML
+│   ├── report.py           console / CSV / JSON / HTML
+│   ├── pipeline.py         run_pipeline(): used by CLI and dashboard
+│   └── dashboard_data.py   data preparation for the dashboard
 ├── rules/                  YAML rules (one file per technique)
 ├── tests/                  pytest suite
 ├── docs/                   architecture and detection documentation
