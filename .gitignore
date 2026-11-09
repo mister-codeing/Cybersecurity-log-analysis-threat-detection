@@ -1,9 +1,15 @@
 __pycache__/
 *.pyc
+.pytest_cache/
 venv/
 .venv/
 .idea/
 .vscode/
+
+# Never commit event logs (may contain private data) or generated reports
+*.evtx
 samples/*.evtx
 output/
 *.html
+*.csv
+reports/

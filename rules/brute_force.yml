@@ -1,0 +1,79 @@
+# Technique: Brute Force (MITRE T1110)
+# One failed logon is normal (typos). Many failures from the same source in a
+# short time is password guessing or password spraying. These rules use a
+# "correlation" section, so they are evaluated by detector/correlation.py.
+#
+#   threshold = minimum number of matching events
+#   timeframe = time window (s = seconds, m = minutes, h = hours)
+# Both can be overridden in config.yml or with --threshold / --timeframe.
+
+title: Brute Force - Multiple Failed Logons
+id: rule-007
+level: medium
+mitre: T1110
+description: Many failed logons (Security 4625) from the same source IP within a short time window.
+detection:
+  event_id: [4625]
+  channel: Security
+correlation:
+  type: threshold
+  group_by: [IpAddress]
+  threshold: 5
+  timeframe: 10m
+show: [TargetUserName, LogonType, Status, WorkstationName]
+
+---
+title: Brute Force Succeeded - Failed Logons Followed by Success
+id: rule-008
+level: critical
+mitre: T1110
+description: Several failed logons (4625) from a source were followed by a successful logon (4624) from the same source - the password was probably guessed.
+detection:
+  event_id: [4625]
+  channel: Security
+correlation:
+  type: sequence
+  group_by: [IpAddress]
+  threshold: 5
+  timeframe: 10m
+  followed_by:
+    event_id: [4624]
+    channel: Security
+    exclude:
+      # 0 = System, 5 = Service logons happen all the time and mean nothing here
+      LogonType|equals: [0, 5]
+show: [TargetUserName, LogonType]
+
+---
+title: Kerberos Brute Force / Password Spray
+id: rule-009
+level: medium
+mitre: T1110
+description: Many Kerberos pre-authentication failures (Security 4771, domain controller) from the same client IP.
+detection:
+  event_id: [4771]
+  channel: Security
+correlation:
+  type: threshold
+  group_by: [IpAddress]
+  threshold: 5
+  timeframe: 10m
+show: [TargetUserName, Status]
+
+---
+title: NTLM Brute Force - Credential Validation Failures
+id: rule-010
+level: medium
+mitre: T1110
+description: Many failed NTLM credential validations (Security 4776) coming from the same workstation.
+detection:
+  event_id: [4776]
+  channel: Security
+  exclude:
+    Status|equals: ['0x0', '0x00000000']   # 0x0 = success, not a failure
+correlation:
+  type: threshold
+  group_by: [Workstation]
+  threshold: 5
+  timeframe: 10m
+show: [TargetUserName, Status]

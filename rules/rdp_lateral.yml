@@ -1,0 +1,96 @@
+# Technique: Remote Services - Remote Desktop Protocol (MITRE T1021.001)
+# Attackers with valid credentials use RDP to move between machines.
+# Single RDP events are logged as "low" (RDP is also used legitimately);
+# the correlation rules at the end raise "medium"/"high" alerts for patterns
+# that look like lateral movement.
+
+title: RDP Logon From Remote Address
+id: rule-011
+level: low
+mitre: T1021.001
+description: Successful RDP logon (Security 4624, LogonType 10 = RemoteInteractive, 12 = CachedRemoteInteractive) from a non-local address.
+detection:
+  event_id: [4624]
+  channel: Security
+  fields:
+    LogonType|equals: [10, 12]
+  exclude:
+    IpAddress|equals: ['-', '127.0.0.1', '::1']
+show: [TargetUserName, TargetDomainName, IpAddress, LogonType]
+
+---
+title: RDP Authentication Succeeded
+id: rule-012
+level: low
+mitre: T1021.001
+description: RDP network authentication succeeded (RemoteConnectionManager 1149). Param1 = user, Param2 = domain, Param3 = source IP. A loopback source (127.0.0.1) can indicate RDP tunneling.
+detection:
+  event_id: [1149]
+  channel: Microsoft-Windows-TerminalServices-RemoteConnectionManager/Operational
+show: [Param1, Param2, Param3]
+
+---
+title: RDP Session Logon / Reconnect
+id: rule-013
+level: low
+mitre: T1021.001
+description: Remote Desktop session logon (21), shell start (22) or reconnection (25) from a remote address (LocalSessionManager log).
+detection:
+  event_id: [21, 22, 25]
+  channel: Microsoft-Windows-TerminalServices-LocalSessionManager/Operational
+  exclude:
+    Address|equals: ['LOCAL', '127.0.0.1', '::1']
+show: [User, SessionID, Address]
+
+---
+title: RDP Connection Received by Listener
+id: rule-014
+level: low
+mitre: T1021.001
+description: The RDP listener received a connection (RemoteConnectionManager 261). Informational - shows when RDP connections reached this host.
+detection:
+  event_id: [261]
+  channel: Microsoft-Windows-TerminalServices-RemoteConnectionManager/Operational
+show: []
+
+---
+title: RDP Lateral Movement - Same Account on Many Hosts
+id: rule-015
+level: high
+mitre: T1021.001
+description: The same account logged on over RDP to several different computers within a short time (needs logs from several hosts).
+detection:
+  event_id: [4624]
+  channel: Security
+  fields:
+    LogonType|equals: [10, 12]
+  exclude:
+    IpAddress|equals: ['-', '127.0.0.1', '::1']
+correlation:
+  type: threshold
+  group_by: [TargetUserName]
+  distinct: computer        # count different computers, not events
+  threshold: 3
+  timeframe: 60m
+show: [IpAddress]
+
+---
+title: RDP Logons From Many Source Addresses
+id: rule-016
+level: medium
+mitre: T1021.001
+description: The same account logged on over RDP from several different source IPs within a short time (unusual sources).
+detection:
+  event_id: [4624]
+  channel: Security
+  fields:
+    LogonType|equals: [10, 12]
+  exclude:
+    IpAddress|equals: ['-', '127.0.0.1', '::1']
+correlation:
+  type: threshold
+  group_by: [TargetUserName]
+  distinct: IpAddress       # count different source IPs
+  threshold: 3
+  timeframe: 60m
+show: [IpAddress]

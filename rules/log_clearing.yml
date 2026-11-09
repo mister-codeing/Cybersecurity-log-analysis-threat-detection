@@ -1,8 +1,27 @@
+# Technique: Indicator Removal - Clear Windows Event Logs (MITRE T1070.001)
+# Attackers clear logs to hide their activity. Windows always writes one last
+# event when a log is cleared, so these events are high-confidence signals.
+
 title: Security Log Cleared
 id: rule-001
 level: high
 mitre: T1070.001
-description: Security audit log was cleared
+description: The Security audit log was cleared (event 1102). Legitimate clearing is rare and should be explained by an administrator.
 detection:
   event_id: [1102]
   channel: Security
+show: [SubjectUserName, SubjectDomainName]
+
+---
+title: Windows Log Cleared
+id: rule-002
+level: high
+mitre: T1070.001
+description: A Windows event log (System, Application or another log) was cleared (event 104).
+detection:
+  event_id: [104]
+  channel: System
+  fields:
+    # Other providers (e.g. RdpCoreTs) reuse ID 104 for unrelated events.
+    provider|equals: Microsoft-Windows-Eventlog
+show: [SubjectUserName, SubjectDomainName, Channel]

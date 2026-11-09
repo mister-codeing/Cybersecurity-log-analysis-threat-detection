@@ -1,8 +1,13 @@
+# Technique: Create or Modify System Process - Windows Service (MITRE T1543.003)
+# A service runs automatically (often as SYSTEM), so attackers install services
+# for persistence and for remote execution (PsExec-style tools).
+# We only alert when the service binary/command looks suspicious.
+
 title: Suspicious Service Installed
 id: rule-003
 level: high
 mitre: T1543.003
-description: New service installed with a suspicious binary path
+description: A new service was installed (System 7045) whose binary path points to a user-writable folder or starts a script interpreter / LOLBin.
 detection:
   event_id: [7045]
   channel: System
@@ -11,7 +16,41 @@ detection:
       - '\temp\'
       - '\appdata\'
       - '\users\public\'
+      - '\programdata\'
       - 'powershell'
       - 'cmd.exe'
       - '%comspec%'
-show: [ServiceName, ImagePath]
+      - 'mshta'
+      - 'rundll32'
+      - 'regsvr32'
+      - ' -enc'              # powershell -enc / -encodedcommand
+      - ' -ec '
+      - 'frombase64string'
+show: [ServiceName, ImagePath, AccountName, StartType]
+
+---
+title: Suspicious Service Installed (Security Log)
+id: rule-004
+level: high
+mitre: T1543.003
+description: A new service was installed (Security 4697, needs "Audit Security System Extension") with a suspicious binary path.
+detection:
+  event_id: [4697]
+  channel: Security
+  fields:
+    # Same list as rule-003 (YAML anchors only work inside one document).
+    ServiceFileName|contains:
+      - '\temp\'
+      - '\appdata\'
+      - '\users\public\'
+      - '\programdata\'
+      - 'powershell'
+      - 'cmd.exe'
+      - '%comspec%'
+      - 'mshta'
+      - 'rundll32'
+      - 'regsvr32'
+      - ' -enc'
+      - ' -ec '
+      - 'frombase64string'
+show: [SubjectUserName, ServiceName, ServiceFileName, ServiceAccount]

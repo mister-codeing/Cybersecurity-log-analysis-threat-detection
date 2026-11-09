@@ -1,0 +1,40 @@
+# Technique: Scheduled Task/Job - Scheduled Task (MITRE T1053.005)
+# Scheduled tasks run commands at boot, logon or on a timer, which makes them
+# a popular persistence and remote-execution method (e.g. "atexec").
+
+title: Suspicious Scheduled Task Created
+id: rule-005
+level: high
+mitre: T1053.005
+description: A scheduled task was created (Security 4698) whose action runs a script interpreter / LOLBin or a file in a user-writable folder.
+detection:
+  event_id: [4698]
+  channel: Security
+  fields:
+    # TaskContent holds the full task XML, including <Command> and <Arguments>.
+    TaskContent|contains:
+      - '\temp\'
+      - '\appdata\'
+      - '\users\public\'
+      - '\programdata\'
+      - 'powershell'
+      - 'cmd.exe'
+      - '%comspec%'
+      - 'mshta'
+      - 'rundll32'
+      - 'regsvr32'
+      - ' -enc'
+      - ' -ec '
+      - 'frombase64string'
+show: [SubjectUserName, TaskName]
+
+---
+title: Scheduled Task Registered
+id: rule-006
+level: low
+mitre: T1053.005
+description: A scheduled task was registered (TaskScheduler 106). This event does not contain the command, so it is informational; review it together with 4698.
+detection:
+  event_id: [106]
+  channel: Microsoft-Windows-TaskScheduler/Operational
+show: [TaskName, UserContext]
