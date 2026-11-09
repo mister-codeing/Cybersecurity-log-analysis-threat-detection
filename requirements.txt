@@ -1,3 +1,4 @@
-python-evtx
-xmltodict
-pyyaml
+# Runtime dependencies
+python-evtx>=0.7.4    # read the binary EVTX format
+xmltodict>=0.13       # convert each event's XML into a Python dict
+PyYAML>=6.0           # read the detection rules and config.yml
