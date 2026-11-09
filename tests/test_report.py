@@ -73,3 +73,21 @@ def test_html_without_alerts():
     page = build_html([])
     assert "No alerts" in page
     assert '<table id="alerts">' not in page
+
+
+def test_csv_and_json_text_match_files(tmp_path):
+    from detector.report import csv_text, json_text
+    text = csv_text(ALERTS)
+    assert text.splitlines()[0] == "time,level,rule_id,rule,mitre,computer,details"
+    assert len(text.splitlines()) == 3
+    assert json.loads(json_text(ALERTS))["summary"]["total"] == 2
+
+
+def test_csv_formula_injection_is_neutralized():
+    from detector.report import csv_text, safe_cell
+    assert safe_cell("=1+1") == "'=1+1"
+    assert safe_cell("@SUM(A1)") == "'@SUM(A1)"
+    assert safe_cell("normal") == "normal"
+    alert = dict(ALERTS[0], computer='=HYPERLINK("http://evil")')
+    row = list(csv.reader(csv_text([alert]).splitlines()))[1]
+    assert row[5] == '\'=HYPERLINK("http://evil")'

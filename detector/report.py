@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import csv
 import html
+import io
 import json
 import os
 from collections import Counter
@@ -114,14 +115,33 @@ def print_console(alerts: list[dict], stats: dict | None = None) -> None:
 CSV_COLUMNS = ["time", "level", "rule_id", "rule", "mitre", "computer", "details"]
 
 
+def safe_cell(value) -> str:
+    """Protect against CSV/formula injection.
+
+    Log data is attacker-controlled. A username like '=HYPERLINK(...)' would be
+    executed as a formula when the CSV is opened in Excel, so cells starting
+    with = + - @ get a leading apostrophe (Excel then shows them as text).
+    """
+    text = "" if value is None else str(value)
+    return "'" + text if text[:1] in ("=", "+", "-", "@") else text
+
+
+def csv_text(alerts: list[dict]) -> str:
+    """Return the CSV report as a string (used for files and downloads)."""
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)          # rows end with \r\n (CSV standard)
+    writer.writerow(CSV_COLUMNS)
+    for a in sort_alerts(alerts):
+        writer.writerow([safe_cell(v) for v in (
+            a["time"], a["level"], a["rule_id"], a["rule"],
+            a["mitre"], a["computer"], details_text(a["details"]))])
+    return buffer.getvalue()
+
+
 def write_csv(alerts: list[dict], path: str) -> str:
     """One row per alert. 'utf-8-sig' lets Excel open the file correctly."""
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.writer(f)
-        writer.writerow(CSV_COLUMNS)
-        for a in sort_alerts(alerts):
-            writer.writerow([a["time"], a["level"], a["rule_id"], a["rule"],
-                             a["mitre"], a["computer"], details_text(a["details"])])
+        f.write(csv_text(alerts))
     return path
 
 
@@ -129,16 +149,20 @@ def write_csv(alerts: list[dict], path: str) -> str:
 # (c) JSON
 # ---------------------------------------------------------------------------
 
-def write_json(alerts: list[dict], path: str, stats: dict | None = None) -> str:
-    """Machine-readable report: scan info + summary + all alerts."""
+def json_text(alerts: list[dict], stats: dict | None = None) -> str:
+    """Machine-readable report as a string: scan info + summary + all alerts."""
     report = {
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "scan": stats or {},
         "summary": summarize(alerts),
         "alerts": sort_alerts(alerts),
     }
+    return json.dumps(report, indent=2, ensure_ascii=False, default=str)
+
+
+def write_json(alerts: list[dict], path: str, stats: dict | None = None) -> str:
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(report, f, indent=2, ensure_ascii=False, default=str)
+        f.write(json_text(alerts, stats))
     return path
 
 
