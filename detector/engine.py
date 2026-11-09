@@ -90,8 +90,14 @@ def validate_rule(rule: dict, source: str = "") -> None:
         raise RuleError(f"{name} has unknown level '{rule['level']}'")
 
     selections = [rule["detection"]]
-    if "followed_by" in rule.get("correlation", {}):
-        selections.append(rule["correlation"]["followed_by"])
+    if "correlation" in rule:
+        corr = rule["correlation"] or {}
+        if corr.get("type", "threshold") not in ("threshold", "sequence"):
+            raise RuleError(f"{name} has unknown correlation type '{corr.get('type')}'")
+        if corr.get("type") == "sequence":
+            if "followed_by" not in corr:
+                raise RuleError(f"{name}: sequence correlation needs 'followed_by'")
+            selections.append(corr["followed_by"])
     for selection in selections:
         for section in ("fields", "exclude"):
             for key in (selection.get(section) or {}):

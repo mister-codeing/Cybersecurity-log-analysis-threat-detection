@@ -1,0 +1,34 @@
+# config.yml - optional tuning of correlation rules (used by default by main.py).
+#
+# Each rule YAML already contains sensible default values. Values here override
+# them per rule id, and the CLI options --threshold / --timeframe override
+# everything (for ALL correlation rules at once).
+#
+#   threshold: minimum number of events (or distinct values) in the window
+#   timeframe: window length, e.g. 30s, 10m, 1h
+#
+# Defaults were chosen as follows:
+#   - 5 failures in 10 minutes is a common baseline (similar to typical account
+#     lockout policies) - a user mistyping a password rarely fails 5 times.
+#   - 3 different hosts / source IPs for one account within 1 hour is unusual
+#     for normal administration over RDP.
+
+correlation:
+  rule-007:            # Brute Force - Multiple Failed Logons (4625)
+    threshold: 5
+    timeframe: 10m
+  rule-008:            # Brute Force Succeeded (4625 x N -> 4624)
+    threshold: 5
+    timeframe: 10m
+  rule-009:            # Kerberos pre-auth failures (4771)
+    threshold: 5
+    timeframe: 10m
+  rule-010:            # NTLM validation failures (4776)
+    threshold: 5
+    timeframe: 10m
+  rule-015:            # RDP - same account on many hosts
+    threshold: 3
+    timeframe: 60m
+  rule-016:            # RDP - same account from many source IPs
+    threshold: 3
+    timeframe: 60m
