@@ -13,3 +13,6 @@ output/
 *.html
 *.csv
 reports/
+
+# Your own exported logs (see docs/own_logs.md) - never commit
+my_logs/
