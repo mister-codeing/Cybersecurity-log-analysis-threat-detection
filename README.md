@@ -19,8 +19,10 @@ small so every part can be read and explained.
 - **Correlation engine**: threshold rules ("N events in T minutes") and sequence rules ("N failures *then* a success")
 - Thresholds configurable per rule in `config.yml` or globally with `--threshold` / `--timeframe`
 - Reports: **console** summary, **CSV**, **JSON** and a single-file **HTML** report (sortable table, severity colors, MITRE links, timeline)
+- Every rule can carry a short **recommendation** (what to do next), shown in every output
 - Graceful error handling: corrupt files, empty files, missing paths, invalid rules
-- 94 automated `pytest` tests that run without any real EVTX file
+- Automated `pytest` suite (mostly synthetic events; real-file tests are skipped if the sample is missing)
+- **Evaluation script** (`evaluate.py`) against labelled public attack samples - see [Evaluation](#evaluation)
 - Optional **web dashboard** (Streamlit) with charts, filters and exports - see [Dashboard](#dashboard-optional)
 
 ## Supported detections
@@ -136,6 +138,7 @@ Example console output:
 [HIGH] 2019-03-19T23:35:07.524200+00:00 | PC01.example.corp | Security Log Cleared (T1070.001)
         SubjectUserName: user01
         SubjectDomainName: EXAMPLE
+        -> Recommendation: Confirm with the administrator whether the clear was planned; if not, treat the host as compromised, collect logs from other sources (SIEM, backups, other hosts) and review the activity of the SubjectUserName account.
 [*] Total alerts: 1
 ```
 
@@ -181,10 +184,20 @@ How it is built:
 
 > _Placeholder - add your own screenshots to `docs/screenshots/` and uncomment the lines below._
 
+Screenshots to capture for the defence (suggested file names):
+
+1. `cli_run.png` - `python main.py samples/ --format console,html` in the terminal (summary + a few alerts with recommendations)
+2. `pytest.png` - `python -m pytest -v` ending with all tests passed
+3. `dashboard_overview.png` - dashboard with the `samples` folder: metric cards and the three charts
+4. `dashboard_alert_details.png` - one selected alert with the details table (incl. Recommendation)
+5. `html_report.png` - `output/report.html` open in the browser (cards, table, timeline)
+6. `evaluation_table.png` - the summary at the end of `python evaluate.py` (or `docs/evaluation_results.md` rendered on GitHub)
+
 <!--
 ![Dashboard overview](docs/screenshots/dashboard_overview.png)
 ![Alerts table and details](docs/screenshots/dashboard_alerts.png)
 ![HTML report](docs/screenshots/html_report.png)
+![Evaluation](docs/screenshots/evaluation_table.png)
 -->
 
 ## Rule format
@@ -197,6 +210,7 @@ id: rule-003                             # unique id
 level: high                              # low | medium | high | critical
 mitre: T1543.003                         # MITRE ATT&CK technique id
 description: New service with a suspicious binary path
+recommendation: Check the binary; if unknown, delete the service and isolate the host.   # optional
 detection:
   event_id: [7045]                       # event must have one of these IDs
   channel: System                        # optional: one value or a list
@@ -212,6 +226,11 @@ show: [ServiceName, ImagePath]           # fields copied into the alert
 - Operators: `equals` (default if no `|operator`), `contains`, `startswith`, `endswith`. All comparisons ignore case.
 - Field names refer to the event's `data` (e.g. `TargetUserName`, `IpAddress`), or to the top-level keys `computer`, `channel`, `provider`, `event_id`.
 - Rules are validated on load: a missing key, unknown level or unknown operator stops the program with a clear message.
+- `recommendation` is **optional** free text (1-2 sentences: what an analyst should do next). It is copied
+  into every alert of the rule - single-event and correlation alerts - and shown in the console
+  (`-> Recommendation: ...`), as the last CSV column, in JSON, in the HTML report (HTML-escaped) and in the
+  dashboard's alert details (plain text). A rule without it works normally; its alerts have an empty
+  recommendation. It is static text from the rule, not generated advice.
 
 ### Correlation rules
 
@@ -269,6 +288,7 @@ Real attack logs come from the public
 | `Credential Access/kerberos_pwd_spray_4771.evtx` | 1 high (log cleared); with `--threshold 2` also 1 medium - Kerberos Password Spray (only 2 failures in this sample) |
 | `Command and Control/DE_RDP_Tunneling_TerminalServices-RemoteConnectionManagerOperational_1149.evtx` | 36 low - RDP authentication (1149) and listener (261) events |
 | `Credential Access/CA_4624_4625_LogonType2_LogonProc_chrome.evtx` | 0 - a single failed logon is not brute force (negative test) |
+| `Command and Control/DE_RDP_Tunneling_4624.evtx` | 0 - the tunneled RDP logon comes from `127.0.0.1`, which rule-011 excludes (known miss, see [Evaluation](#evaluation)) |
 
 Example download (PowerShell or bash):
 
@@ -296,6 +316,55 @@ python -m pytest -v         # one line per test
 - `tests/test_dashboard_data.py` - dashboard helpers: filters, search, counts, timeline buckets, threshold config, upload checks
 - `tests/test_cli.py` - CLI options and errors; one **integration test** on the real
   `DE_1102_security_log_cleared.evtx`, automatically **skipped** if the file is missing
+- `tests/test_evaluate.py` - evaluation logic (expected vs actual, TP/FN/FP counts, ground-truth file) and every SYNTHETIC scenario
+- `tests/test_compare_tools.py` - reading/validating the manual comparison CSV
+
+Real vs synthetic: apart from the two tests on `DE_1102_security_log_cleared.evtx`
+(test_cli, test_pipeline), every pytest test uses **synthetic** (hand-made) events.
+Real files are used by `evaluate.py`.
+
+## Evaluation
+
+```bash
+python evaluate.py                 # needs the samples in samples/ (missing ones are skipped)
+python evaluate.py --no-docs       # do not rewrite docs/evaluation_results.md
+```
+
+- Ground truth: [`tests/expected_results.yml`](tests/expected_results.yml) - for every sample the
+  technique, the rule ids that **should** fire, rule ids that must **not** fire, a justification
+  and a `certain` / `uncertain` label. Labels were written from the sample **names** and the
+  EVTX-ATTACK-SAMPLES techniques, **not** from this tool's output (otherwise the test would be circular).
+- For every sample: events parsed, expected / actual rules, missing (false negatives),
+  unexpected (false positives), PASS/FAIL and processing time.
+- Summary: samples passed, total events and time, events per second, and a per-technique
+  table with raw TP / FN / FP counts. **No accuracy percentage** - 11 files are far too few.
+- A separate **SYNTHETIC** section runs hand-made brute-force and RDP scenarios (incl. negative ones).
+- A sample with `threshold_override` gets an extra "tuned" run, reported separately and **not** counted.
+- Output: console, `output/evaluation.csv`, `output/evaluation.json` (git-ignored) and
+  [`docs/evaluation_results.md`](docs/evaluation_results.md) (with date and Python version).
+
+Current results: see [docs/evaluation_results.md](docs/evaluation_results.md). The two known misses
+(RDP tunneling from loopback, a Kerberos spray with only 2 failures) are explained in
+[docs/defense_qa.md](docs/defense_qa.md).
+
+### Comparison with Chainsaw / Hayabusa
+
+Not measured yet (neither tool was installed during development) - **no results are claimed**.
+A template and a helper are ready:
+
+```bash
+python compare_tools.py --init output/comparison.csv      # empty CSV: sample, tool, alerts, notes
+# run the tools yourself and type their counts into the CSV, e.g.:
+chainsaw hunt samples/DE_1102_security_log_cleared.evtx -s sigma/rules --mapping mappings/sigma-event-logs-all.yml --json --output out.json
+hayabusa csv-timeline -f samples/DE_1102_security_log_cleared.evtx -o out.csv
+python compare_tools.py output/comparison.csv             # table incl. this tool's real counts
+# optional, only if chainsaw is on PATH (stores only its detection count):
+python compare_tools.py output/comparison.csv --run-chainsaw --sigma sigma/rules --mapping mappings/sigma-event-logs-all.yml
+```
+
+Details and caveats (different rule sets are not directly comparable):
+[docs/comparison_template.md](docs/comparison_template.md).
+To create a small **real** brute-force test on your own PC, see [docs/own_logs.md](docs/own_logs.md).
 
 ## Limitations
 
@@ -306,21 +375,32 @@ python -m pytest -v         # one line per test
 - Correlation thresholds are fixed numbers, not learned baselines of "normal" behaviour.
 - The rule language is a simplified subset of Sigma (no regular expressions, no nested AND/OR conditions).
 - Timestamps are taken from the logs as they are; clock differences between hosts are not corrected.
+- RDP logons from loopback (`127.0.0.1`, `::1`) are ignored by rule-011 to reduce noise, so RDP **tunneling** seen only as a 4624 is missed (found by the evaluation).
+- Fixed thresholds miss slow attacks below the threshold, and short recordings like the public Kerberos spray sample (2 failures).
+- The evaluation uses only 11 short public lab samples with no normal background activity: it shows the rules work on these attacks, but it does **not** measure a real-world detection or false-positive rate.
+- Brute-force and multi-host RDP correlation are verified only with **synthetic** events (and optionally your own test, see `docs/own_logs.md`).
+- No machine learning, no chatbot, and no recommendation engine: the `recommendation` text is fixed per rule.
+- Not compared with Chainsaw / Hayabusa yet (template only).
 
 ## Future work
 
-- Import Sigma rules directly; add regex and numeric comparison operators
+- **Sigma import**: load Sigma rules directly; add regex and numeric comparison operators
+- **Machine-learning anomaly detection** (e.g. learned baselines of normal logon sources/times) as an *addition* to the rules
+- A **chatbot / assistant** that explains alerts in natural language (future idea only - not implemented)
+- A dedicated rule for RDP logons from loopback (possible RDP tunneling)
 - More techniques (Pass-the-Hash, Kerberoasting, PowerShell script-block logging, Sysmon)
 - Allow-lists for known admin accounts / hosts to reduce false positives
-- Baseline / anomaly detection for "unusual" logon sources
+- A larger evaluation set, including normal background logs, and a real Chainsaw/Hayabusa comparison
 - Streaming correlation for very large datasets; parallel parsing of many files
-- Export to SIEM formats (e.g. Elastic Common Schema) and a small web dashboard
+- Export to SIEM formats (e.g. Elastic Common Schema)
 
 ## Project structure
 
 ```
 ├── main.py                 CLI entry point
 ├── dashboard.py            optional Streamlit dashboard
+├── evaluate.py             evaluation on labelled samples (+ synthetic scenarios)
+├── compare_tools.py        helper for a manual Chainsaw / Hayabusa comparison
 ├── config.yml              correlation thresholds
 ├── detector/
 │   ├── parser.py           EVTX -> normalized events
@@ -330,7 +410,7 @@ python -m pytest -v         # one line per test
 │   ├── pipeline.py         run_pipeline(): used by CLI and dashboard
 │   └── dashboard_data.py   data preparation for the dashboard
 ├── rules/                  YAML rules (one file per technique)
-├── tests/                  pytest suite
-├── docs/                   architecture and detection documentation
+├── tests/                  pytest suite + expected_results.yml (evaluation ground truth)
+├── docs/                   architecture, detections, evaluation results, defence Q&A, guides
 └── samples/                put .evtx files here (not committed)
 ```

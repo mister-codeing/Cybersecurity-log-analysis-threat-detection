@@ -124,8 +124,13 @@ are analysed together.
 All formats use the same alert dict:
 
 ```python
-{"time", "computer", "rule", "rule_id", "level", "mitre", "description", "details"}
+{"time", "computer", "rule", "rule_id", "level", "mitre", "description",
+ "recommendation", "details"}
 ```
+
+`recommendation` is copied from the rule's optional `recommendation:` text by
+`engine.make_alert()`, which both single-event and correlation alerts use; it is an
+empty string when the rule has none.
 
 | Format | Use |
 |---|---|
@@ -161,7 +166,15 @@ Uses the pipeline functions above.
 6. Filter by `--min-level`, write the requested reports.
 7. Exit code `0` (ok) or `2` (error).
 
-## 7. Dashboard (optional) - `dashboard.py` + `detector/dashboard_data.py`
+## 7. Evaluation - `evaluate.py`
+
+Uses `pipeline.analyze()` on each labelled sample (one file at a time) and compares
+the fired rule ids with `tests/expected_results.yml`. The comparison and counting
+functions (`compare`, `summarize`, `technique_table`) are pure and unit tested.
+Synthetic scenarios call `run_detection()` + `run_correlation()` directly on hand-made
+events. Results: [evaluation_results.md](evaluation_results.md).
+
+## 8. Dashboard (optional) - `dashboard.py` + `detector/dashboard_data.py`
 
 The dashboard is a **presentation layer only**; the CLI never imports it and
 does not need Streamlit.

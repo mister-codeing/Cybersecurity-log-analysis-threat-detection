@@ -96,6 +96,15 @@ The lateral-movement **patterns** are correlation rules:
 - **rule-016 (medium):** the same account logs on via RDP from **≥ 3 different
   source IPs within 60 minutes** - unusual sources for one user.
 
+## Recommendations
+
+Every rule has an optional `recommendation:` - one or two sentences telling an
+analyst what to check or do next (for example rule-008: treat the account as
+compromised, disable it or reset its password, investigate the source IP and review
+what happened after the successful logon). The text is written by hand in the rule,
+copied into each alert and shown in all outputs. It is **not** generated or ranked by
+any algorithm. See the rule files for the exact wording.
+
 ## Tuning
 
 Edit `config.yml` (per rule id) or use `--threshold` / `--timeframe`
