@@ -147,7 +147,7 @@ installing anything from this section.
 
 ```bash
 pip install -r requirements-dashboard.txt     # streamlit, pandas, altair
-streamlit run dashboard.py                    # opens http://localhost:8501
+python -m streamlit run dashboard.py                # opens http://localhost:8501
 ```
 
 What it shows:
