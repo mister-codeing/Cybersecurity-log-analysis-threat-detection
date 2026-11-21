@@ -1,0 +1,158 @@
+# expected_results.yml - ground truth for evaluate.py
+#
+# HOW THESE LABELS WERE MADE (important for an honest evaluation)
+#   The expected rules come from each sample's NAME and the technique / event
+#   IDs it represents in EVTX-ATTACK-SAMPLES
+#   (https://github.com/sbousseaden/EVTX-ATTACK-SAMPLES) - NOT from this
+#   tool's output. Otherwise the evaluation would only check that the tool
+#   agrees with itself (circular).
+#   If the name does not tell us enough, the label is "uncertain" and the
+#   reason is written in 'justification'.
+#
+# FIELDS PER SAMPLE
+#   file              file name inside samples/
+#   folder            folder in EVTX-ATTACK-SAMPLES (where to download it)
+#   technique         MITRE technique(s) the sample represents ("none" = negative sample)
+#   expected_rules    rule ids that SHOULD fire  (missing  -> false negative)
+#   should_not_fire   rule ids that must NOT fire (if they fire -> false positive)
+#   allowed_rules     rule ids that MAY fire without counting as an error
+#   label             certain | uncertain
+#   justification     why we expect this
+#   threshold_override (optional) extra "tuned" run with this threshold for ALL
+#                     correlation rules. Reported separately, never counted in
+#                     the main (default settings) score.
+#
+# COUNTING POLICY (decided before running the evaluation)
+#   - Any fired rule that is not expected and not allowed = unexpected (false positive).
+#   - Rules mapped to the SAME technique as the sample are allowed automatically:
+#     they describe the same attack (e.g. RDP listener event 261 next to 1149).
+#   - 'allowed_on_all_samples' below is allowed everywhere.
+
+allowed_on_all_samples:
+  rules: [rule-001, rule-002]
+  justification: >-
+    EVTX-ATTACK-SAMPLES recordings are often made on a lab machine whose log was
+    cleared just before the attack was recorded. A 1102 / 104 event inside a
+    sample is a REAL log-clear event, so alerting on it is correct even when it
+    is not the technique in the file name. These alerts are listed in the
+    "allowed" column so they stay visible.
+
+samples:
+  - file: DE_1102_security_log_cleared.evtx
+    folder: Defense Evasion
+    technique: [T1070.001]
+    expected_rules: [rule-001]
+    should_not_fire: [rule-007, rule-008]
+    label: certain
+    justification: Name says "Security log cleared" = event 1102, which rule-001 detects.
+
+  - file: DE_104_system_log_cleared.evtx
+    folder: Defense Evasion
+    technique: [T1070.001]
+    expected_rules: [rule-002]
+    should_not_fire: [rule-007, rule-008]
+    label: certain
+    justification: Name says "System log cleared" = System event 104, which rule-002 detects.
+
+  - file: LM_Remote_Service02_7045.evtx
+    folder: Lateral Movement
+    technique: [T1543.003]
+    expected_rules: [rule-003]
+    should_not_fire: [rule-007, rule-008]
+    label: certain
+    justification: >-
+      Remote service creation (PsExec-like lateral movement) logged as System 7045.
+      Remote-execution services normally run cmd.exe / a dropped binary, which
+      matches rule-003's indicators.
+
+  - file: System_7045_namedpipe_privesc.evtx
+    folder: Privilege Escalation
+    technique: [T1543.003]
+    expected_rules: [rule-003]
+    should_not_fire: [rule-007, rule-008]
+    label: certain
+    justification: >-
+      Named-pipe impersonation privilege escalation (getsystem-style) installs a
+      service (7045) that runs a shell command writing to a named pipe.
+
+  - file: temp_scheduled_task_4698_4699.evtx
+    folder: Execution
+    technique: [T1053.005]
+    expected_rules: [rule-005]
+    should_not_fire: [rule-007, rule-008]
+    label: uncertain
+    justification: >-
+      A temporary scheduled task is created (4698) and deleted (4699). The name
+      does not say WHAT the task runs, so it is uncertain whether the command
+      contains one of rule-005's suspicious keywords. Labelled as "should fire"
+      because the technique is present.
+
+  - file: PrivEsc_SeImpersonatePriv_enabled_back_for_upnp_localsvc_4698.evtx
+    folder: Privilege Escalation
+    technique: [T1053.005]
+    expected_rules: [rule-005]
+    should_not_fire: [rule-007, rule-008]
+    label: uncertain
+    justification: >-
+      A scheduled task (4698) is used to get SeImpersonatePrivilege back for a
+      LocalService account (upnp). The technique is present; the exact command
+      is not known from the name, so whether rule-005's keywords match is uncertain.
+
+  - file: LM_ScheduledTask_ATSVC_target_host.evtx
+    folder: Lateral Movement
+    technique: [T1053.005]
+    expected_rules: [rule-005]
+    should_not_fire: [rule-007, rule-008]
+    label: certain
+    justification: >-
+      Remote scheduled task via the ATSVC pipe (atexec-style) on the target host.
+      atexec-style tools create a 4698 task that runs "cmd.exe /C ... > %windir%\Temp\...",
+      which matches rule-005.
+
+  - file: kerberos_pwd_spray_4771.evtx
+    folder: Credential Access
+    technique: [T1110]
+    expected_rules: [rule-009]
+    should_not_fire: [rule-007, rule-008]
+    label: uncertain
+    justification: >-
+      Kerberos password spray = 4771 pre-authentication failures, which rule-009
+      detects. Uncertain: a short public recording may contain fewer failures
+      than the default threshold (5 in 10 minutes), so the default run can miss it.
+    threshold_override: 2
+
+  - file: DE_RDP_Tunneling_4624.evtx
+    folder: Command and Control
+    technique: [T1021.001]
+    expected_rules: [rule-011]
+    should_not_fire: [rule-007, rule-008]
+    label: uncertain
+    justification: >-
+      RDP tunneling: a 4624 RDP logon (LogonType 10) that arrives through a tunnel.
+      Uncertain: tunneled RDP logons usually show a loopback source address
+      (127.0.0.1 / ::1), and rule-011 deliberately excludes loopback to avoid
+      noise - so the tool may miss this (a known design trade-off).
+
+  - file: DE_RDP_Tunneling_TerminalServices-RemoteConnectionManagerOperational_1149.evtx
+    folder: Command and Control
+    technique: [T1021.001]
+    expected_rules: [rule-012]
+    should_not_fire: [rule-007, rule-008]
+    label: certain
+    justification: >-
+      RemoteConnectionManager/Operational log with event 1149 (RDP authentication
+      succeeded), which rule-012 detects. Listener events (261, rule-014) in the
+      same log are the same technique and therefore allowed.
+
+  - file: CA_4624_4625_LogonType2_LogonProc_chrome.evtx
+    folder: Credential Access
+    technique: none
+    expected_rules: []
+    should_not_fire: [rule-007, rule-008, rule-011, rule-015, rule-016]
+    label: uncertain
+    justification: >-
+      NEGATIVE sample for our rules. The name describes 4624/4625 interactive logons
+      (LogonType 2) with logon process "chrome" - a credential-access trick, not a
+      password-guessing burst and not RDP (LogonType 10/12). Expected: no
+      brute-force or RDP alerts. Uncertain: the exact MITRE technique of this
+      sample is not stated in the name.
