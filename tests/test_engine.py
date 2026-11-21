@@ -163,3 +163,32 @@ def test_invalid_rules_raise(tmp_path, text, message):
 def test_missing_rules_dir():
     with pytest.raises(RuleError):
         load_rules("this/folder/does/not/exist")
+
+
+# ---------------------------------------------------------------------------
+# Optional 'recommendation' text
+# ---------------------------------------------------------------------------
+
+def test_alert_carries_recommendation(make_event):
+    rule = dict(SERVICE_RULE, recommendation="Stop and delete the service.")
+    event = make_event(7045, ImagePath="C:\\temp\\x.exe")
+    [alert] = detect_event(event, [rule])
+    assert alert["recommendation"] == "Stop and delete the service."
+
+
+def test_missing_recommendation_is_empty_text(make_event):
+    assert "recommendation" not in SERVICE_RULE
+    [alert] = detect_event(make_event(7045, ImagePath="C:\\temp\\x.exe"), [SERVICE_RULE])
+    assert alert["recommendation"] == ""
+
+
+def test_recommendation_must_be_text(tmp_path):
+    folder = write_rule(tmp_path, "title: A\nid: a\nlevel: low\nmitre: T1\n"
+                                  "detection: {}\nrecommendation: [not, text]\n")
+    with pytest.raises(RuleError, match="recommendation"):
+        load_rules(folder)
+
+
+def test_every_project_rule_has_a_recommendation():
+    for rule in load_rules(RULES_DIR):
+        assert rule.get("recommendation", "").strip(), rule["id"]

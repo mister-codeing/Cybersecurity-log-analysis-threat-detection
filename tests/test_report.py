@@ -78,7 +78,7 @@ def test_html_without_alerts():
 def test_csv_and_json_text_match_files(tmp_path):
     from detector.report import csv_text, json_text
     text = csv_text(ALERTS)
-    assert text.splitlines()[0] == "time,level,rule_id,rule,mitre,computer,details"
+    assert text.splitlines()[0] == "time,level,rule_id,rule,mitre,computer,details,recommendation"
     assert len(text.splitlines()) == 3
     assert json.loads(json_text(ALERTS))["summary"]["total"] == 2
 
@@ -91,3 +91,33 @@ def test_csv_formula_injection_is_neutralized():
     alert = dict(ALERTS[0], computer='=HYPERLINK("http://evil")')
     row = list(csv.reader(csv_text([alert]).splitlines()))[1]
     assert row[5] == '\'=HYPERLINK("http://evil")'
+
+
+# ALERTS above have no 'recommendation' key (like alerts from older versions);
+# REC_ALERT has one that contains HTML, to check escaping.
+REC_ALERT = dict(ALERTS[0], recommendation="Reset <b>password</b> & review")
+
+
+def test_recommendation_in_console_csv_json(capsys):
+    from detector.report import csv_text, json_text
+    print_console([REC_ALERT])
+    assert "-> Recommendation: Reset <b>password</b> & review" in capsys.readouterr().out
+    row = list(csv.DictReader(csv_text([REC_ALERT]).splitlines()))[0]
+    assert row["recommendation"] == "Reset <b>password</b> & review"
+    assert json.loads(json_text([REC_ALERT]))["alerts"][0]["recommendation"] ==         "Reset <b>password</b> & review"
+
+
+def test_recommendation_in_html_is_escaped():
+    page = build_html([REC_ALERT])
+    assert "<th>Recommendation</th>" in page
+    assert "Reset &lt;b&gt;password&lt;/b&gt; &amp; review" in page
+    assert "<b>password</b>" not in page
+
+
+def test_alerts_without_recommendation_still_work(capsys, tmp_path):
+    from detector.report import csv_text
+    print_console(ALERTS)
+    assert "Recommendation" not in capsys.readouterr().out
+    rows = list(csv.DictReader(csv_text(ALERTS).splitlines()))
+    assert [r["recommendation"] for r in rows] == ["", ""]
+    assert "<th>Recommendation</th>" in build_html(ALERTS)

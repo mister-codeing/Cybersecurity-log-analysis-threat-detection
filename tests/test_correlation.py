@@ -150,3 +150,20 @@ def test_project_brute_force_rules(make_event):
         [make_event(4624, minute=7, IpAddress="10.0.0.9", TargetUserName="bob", LogonType="3")]
     levels = sorted(a["level"] for a in run_correlation(events, rules))
     assert levels == ["critical", "medium"]
+
+
+def test_correlation_alerts_carry_recommendation(make_event):
+    threshold_rule = dict(FAILED_RULE, recommendation="Block the source IP.")
+    [alert] = run_correlation(failures(make_event, range(5)), [threshold_rule])
+    assert alert["recommendation"] == "Block the source IP."
+
+    sequence_rule = dict(SUCCESS_RULE, recommendation="Reset the password.")
+    events = failures(make_event, range(5)) + \
+        [make_event(4624, minute=6, IpAddress="10.0.0.9", TargetUserName="bob")]
+    [alert] = run_correlation(events, [sequence_rule])
+    assert alert["recommendation"] == "Reset the password."
+
+
+def test_correlation_rule_without_recommendation(make_event):
+    [alert] = run_correlation(failures(make_event, range(5)), [FAILED_RULE])
+    assert alert["recommendation"] == ""
