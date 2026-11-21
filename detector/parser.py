@@ -93,9 +93,13 @@ def parse_time(raw: str | None) -> datetime | None:
     # Python only understands up to 6 fractional digits -> cut the rest.
     if "." in text:
         main, rest = text.split(".", 1)
-        digits = "".join(ch for ch in rest if ch.isdigit())
-        tz = rest[len(digits):]
-        text = f"{main}.{digits[:6]}{tz}"
+        digits = ""
+        for ch in rest:             # take only the leading digits (the fraction)
+            if not ch.isdigit():
+                break
+            digits += ch
+        tz = rest[len(digits):]     # whatever follows: "+00:00" or empty
+        text = f"{main}.{digits[:6].ljust(6, '0')}{tz}"
     try:
         dt = datetime.fromisoformat(text)
     except ValueError:

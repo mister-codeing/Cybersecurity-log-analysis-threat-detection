@@ -1,5 +1,6 @@
 """Tests for detector/parser.py - turning event XML into normalized dicts."""
 
+import pytest
 import xmltodict
 
 from detector.parser import normalize, normalize_time, parse_time
@@ -108,6 +109,23 @@ def test_normalize_missing_parts_does_not_crash():
     assert event["event_id"] == 5
     assert event["time"] is None
     assert event["data"] == {}
+
+
+@pytest.mark.parametrize("raw, expected", [
+    # python-evtx style: space separator, 6 digits, "+00:00"
+    ("2019-03-19 23:35:07.524200+00:00", "2019-03-19T23:35:07.524200+00:00"),
+    # raw Windows XML style: "T", 7 digits, "Z" -> cut to 6 digits
+    ("2019-03-19T23:35:07.5242000Z", "2019-03-19T23:35:07.524200+00:00"),
+    # no fraction at all
+    ("2019-03-19T23:35:07Z", "2019-03-19T23:35:07+00:00"),
+    # short fraction -> padded to 6 digits (0.5 s = 500000 microseconds)
+    ("2019-03-19 23:35:07.5+00:00", "2019-03-19T23:35:07.500000+00:00"),
+    # other timezone offset -> converted to UTC
+    ("2019-03-20T01:35:07.524200+02:00", "2019-03-19T23:35:07.524200+00:00"),
+])
+def test_parse_time_fractional_seconds_and_timezones(raw, expected):
+    assert parse_time(raw).isoformat() == expected
+    assert normalize_time(raw) == expected
 
 
 def test_parse_time_formats():
