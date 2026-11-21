@@ -8,6 +8,7 @@ id: rule-003
 level: high
 mitre: T1543.003
 description: A new service was installed (System 7045) whose binary path points to a user-writable folder or starts a script interpreter / LOLBin.
+recommendation: 'Check the ImagePath binary (hash, signature, who created it); if it is not known software, stop and delete the service, isolate the host and look for the remote account that installed it.'
 detection:
   event_id: [7045]
   channel: System
@@ -34,6 +35,7 @@ id: rule-004
 level: high
 mitre: T1543.003
 description: A new service was installed (Security 4697, needs "Audit Security System Extension") with a suspicious binary path.
+recommendation: 'Check the ServiceFileName binary and the SubjectUserName that installed it; if it is not known software, stop and delete the service and isolate the host.'
 detection:
   event_id: [4697]
   channel: Security

@@ -7,6 +7,7 @@ id: rule-001
 level: high
 mitre: T1070.001
 description: The Security audit log was cleared (event 1102). Legitimate clearing is rare and should be explained by an administrator.
+recommendation: 'Confirm with the administrator whether the clear was planned; if not, treat the host as compromised, collect logs from other sources (SIEM, backups, other hosts) and review the activity of the SubjectUserName account.'
 detection:
   event_id: [1102]
   channel: Security
@@ -18,6 +19,7 @@ id: rule-002
 level: high
 mitre: T1070.001
 description: A Windows event log (System, Application or another log) was cleared (event 104).
+recommendation: 'Confirm whether the clear was planned; if not, check which log (Channel) was cleared, review the SubjectUserName account and recover events from a SIEM or backup.'
 detection:
   event_id: [104]
   channel: System

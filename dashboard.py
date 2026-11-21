@@ -305,7 +305,8 @@ if selected and selected[0] < len(rows):
               ("Severity", alert["level"]), ("Time (UTC)", alert["time"]),
               ("Computer", alert["computer"]),
               ("MITRE ATT&CK", f"{alert['mitre']} {MITRE_NAMES.get(alert['mitre'], '')}"),
-              ("Description", alert.get("description", ""))]
+              ("Description", alert.get("description", "")),
+              ("Recommendation", alert.get("recommendation") or "(none in this rule)")]
     fields += [(str(k), v) for k, v in alert["details"].items()]
     st.dataframe(pd.DataFrame([{"field": k, "value": "" if v is None else str(v)}
                                for k, v in fields]),

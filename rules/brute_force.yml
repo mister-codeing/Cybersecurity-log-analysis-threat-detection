@@ -12,6 +12,7 @@ id: rule-007
 level: medium
 mitre: T1110
 description: Many failed logons (Security 4625) from the same source IP within a short time window.
+recommendation: 'Check whether the source IP should be allowed to log on; block it at the firewall if not, and make sure account lockout is enabled for the targeted accounts.'
 detection:
   event_id: [4625]
   channel: Security
@@ -28,6 +29,7 @@ id: rule-008
 level: critical
 mitre: T1110
 description: Several failed logons (4625) from a source were followed by a successful logon (4624) from the same source - the password was probably guessed.
+recommendation: 'Treat the account as compromised: disable it or reset its password, block or investigate the source IP, and review everything the account did after the successful logon.'
 detection:
   event_id: [4625]
   channel: Security
@@ -50,6 +52,7 @@ id: rule-009
 level: medium
 mitre: T1110
 description: Many Kerberos pre-authentication failures (Security 4771, domain controller) from the same client IP.
+recommendation: 'Find the client IP, check whether it is an expected machine, and reset passwords of targeted accounts that may have weak passwords; consider blocking the source.'
 detection:
   event_id: [4771]
   channel: Security
@@ -66,6 +69,7 @@ id: rule-010
 level: medium
 mitre: T1110
 description: Many failed NTLM credential validations (Security 4776) coming from the same workstation.
+recommendation: 'Identify the Workstation that sends the failed NTLM logons, check it for malware or a misconfigured saved password, and review the targeted accounts.'
 detection:
   event_id: [4776]
   channel: Security

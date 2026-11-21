@@ -7,6 +7,7 @@ id: rule-005
 level: high
 mitre: T1053.005
 description: A scheduled task was created (Security 4698) whose action runs a script interpreter / LOLBin or a file in a user-writable folder.
+recommendation: 'Review the task command in TaskContent; if it is not expected, disable and delete the task, check the file it runs and the account that created it.'
 detection:
   event_id: [4698]
   channel: Security
@@ -34,6 +35,7 @@ id: rule-006
 level: low
 mitre: T1053.005
 description: A scheduled task was registered (TaskScheduler 106). This event does not contain the command, so it is informational; review it together with 4698.
+recommendation: 'Informational: look for a matching 4698 event or run ''schtasks /query /tn <TaskName> /v'' to see the command, and delete the task if it is unknown.'
 detection:
   event_id: [106]
   channel: Microsoft-Windows-TaskScheduler/Operational

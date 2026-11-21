@@ -106,13 +106,16 @@ def print_console(alerts: list[dict], stats: dict | None = None) -> None:
               f"{a['rule']} ({a['mitre']})")
         for key, value in a["details"].items():
             print(f"        {key}: {value}")
+        if a.get("recommendation"):
+            print(f"        -> Recommendation: {a['recommendation']}")
 
 
 # ---------------------------------------------------------------------------
 # (b) CSV
 # ---------------------------------------------------------------------------
 
-CSV_COLUMNS = ["time", "level", "rule_id", "rule", "mitre", "computer", "details"]
+CSV_COLUMNS = ["time", "level", "rule_id", "rule", "mitre", "computer", "details",
+               "recommendation"]
 
 
 def safe_cell(value) -> str:
@@ -134,7 +137,8 @@ def csv_text(alerts: list[dict]) -> str:
     for a in sort_alerts(alerts):
         writer.writerow([safe_cell(v) for v in (
             a["time"], a["level"], a["rule_id"], a["rule"],
-            a["mitre"], a["computer"], details_text(a["details"]))])
+            a["mitre"], a["computer"], details_text(a["details"]),
+            a.get("recommendation", ""))])
     return buffer.getvalue()
 
 
@@ -190,6 +194,7 @@ th:hover { background:#e2e7ee; }
 th.asc::after { content:" \\25B2"; } th.desc::after { content:" \\25BC"; }
 td.time { white-space:nowrap; font-family:Consolas, monospace; font-size:12px; }
 td.details { font-family:Consolas, monospace; font-size:12px; word-break:break-all; }
+td.rec { font-size:13px; min-width:220px; }
 .badge { display:inline-block; padding:2px 8px; border-radius:10px; color:#fff;
          font-size:12px; font-weight:600; text-transform:uppercase; }
 a { color:#1a5fb4; }
@@ -265,6 +270,7 @@ def build_html(alerts: list[dict], stats: dict | None = None) -> str:
             f'<td data-sort="{esc(a["mitre"])}">{_mitre_link(a["mitre"])}</td>'
             f'<td>{esc(str(a["computer"]))}</td>'
             f'<td class="details">{details}</td>'
+            f'<td class="rec">{esc(str(a.get("recommendation") or ""))}</td>'
             "</tr>")
 
     # --- timeline ---
@@ -281,7 +287,7 @@ def build_html(alerts: list[dict], stats: dict | None = None) -> str:
         alerts_html = (
             '<div class="wrap"><table id="alerts"><thead><tr>'
             "<th>Time (UTC)</th><th>Severity</th><th>Rule</th><th>MITRE</th>"
-            "<th>Computer</th><th>Details</th></tr></thead><tbody>"
+            "<th>Computer</th><th>Details</th><th>Recommendation</th></tr></thead><tbody>"
             + "".join(alert_rows) + "</tbody></table></div>")
         timeline_html = f'<h2>Timeline</h2><ul class="timeline">{timeline}</ul>'
 

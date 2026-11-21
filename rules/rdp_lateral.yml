@@ -9,6 +9,7 @@ id: rule-011
 level: low
 mitre: T1021.001
 description: Successful RDP logon (Security 4624, LogonType 10 = RemoteInteractive, 12 = CachedRemoteInteractive) from a non-local address.
+recommendation: 'Verify that the user is expected to use RDP from this IpAddress; if not, end the session, reset the password and restrict RDP access (firewall / VPN only).'
 detection:
   event_id: [4624]
   channel: Security
@@ -24,6 +25,7 @@ id: rule-012
 level: low
 mitre: T1021.001
 description: RDP network authentication succeeded (RemoteConnectionManager 1149). Param1 = user, Param2 = domain, Param3 = source IP. A loopback source (127.0.0.1) can indicate RDP tunneling.
+recommendation: 'Verify the user (Param1) and source IP (Param3); a 127.0.0.1 or ::1 source can mean RDP tunneling, so check for tools like plink or ngrok on the host.'
 detection:
   event_id: [1149]
   channel: Microsoft-Windows-TerminalServices-RemoteConnectionManager/Operational
@@ -35,6 +37,7 @@ id: rule-013
 level: low
 mitre: T1021.001
 description: Remote Desktop session logon (21), shell start (22) or reconnection (25) from a remote address (LocalSessionManager log).
+recommendation: 'Verify that the User and source Address are expected for this host; if not, end the session and reset the account password.'
 detection:
   event_id: [21, 22, 25]
   channel: Microsoft-Windows-TerminalServices-LocalSessionManager/Operational
@@ -48,6 +51,7 @@ id: rule-014
 level: low
 mitre: T1021.001
 description: The RDP listener received a connection (RemoteConnectionManager 261). Informational - shows when RDP connections reached this host.
+recommendation: 'Informational: correlate with 1149 / 4624 events at the same time to find out who connected.'
 detection:
   event_id: [261]
   channel: Microsoft-Windows-TerminalServices-RemoteConnectionManager/Operational
@@ -59,6 +63,7 @@ id: rule-015
 level: high
 mitre: T1021.001
 description: The same account logged on over RDP to several different computers within a short time (needs logs from several hosts).
+recommendation: 'Check with the account owner whether these RDP sessions were expected; if not, disable the account, reset its password and investigate every listed computer.'
 detection:
   event_id: [4624]
   channel: Security
@@ -80,6 +85,7 @@ id: rule-016
 level: medium
 mitre: T1021.001
 description: The same account logged on over RDP from several different source IPs within a short time (unusual sources).
+recommendation: 'Check whether the listed source IPs belong to the user; unknown sources mean the credentials may be shared or stolen - reset the password and restrict RDP access.'
 detection:
   event_id: [4624]
   channel: Security

@@ -8,6 +8,7 @@ A rule is a YAML document like this:
     level: high                 # low | medium | high | critical
     mitre: T1543.003
     description: ...
+    recommendation: ...         # optional: what an analyst should do next
     detection:
       event_id: [7045]          # event must have one of these IDs
       channel: System           # optional, one value or a list
@@ -88,6 +89,8 @@ def validate_rule(rule: dict, source: str = "") -> None:
             raise RuleError(f"{name} is missing '{key}'")
     if str(rule["level"]).lower() not in LEVELS:
         raise RuleError(f"{name} has unknown level '{rule['level']}'")
+    if not isinstance(rule.get("recommendation", ""), str):
+        raise RuleError(f"{name}: 'recommendation' must be a text")
 
     selections = [rule["detection"]]
     if "correlation" in rule:
@@ -197,6 +200,8 @@ def make_alert(rule: dict, time: str | None, computer: str | None,
         "level": str(level or rule["level"]).lower(),
         "mitre": rule["mitre"],
         "description": rule.get("description", ""),
+        # Optional advice from the rule ("" when the rule has none).
+        "recommendation": rule.get("recommendation") or "",
         "details": details,
     }
 
